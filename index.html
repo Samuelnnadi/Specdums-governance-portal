@@ -1518,38 +1518,59 @@ SPECDUMS Limited (IGWE BU IKE)`;
             result.push(cur.trim());
             return result;
         }
-
+function distributeMonthlyFromYTD(ytdTotal, unitAmount, monthCount, fallbackArr) {
+    if (ytdTotal === undefined || ytdTotal === null || ytdTotal === '') {
+        return fallbackArr.slice();
+    }
+    let remaining = parseNum(ytdTotal, 0);
+    const arr = [];
+    for (let i = 0; i < monthCount; i++) {
+        const paid = Math.max(0, Math.min(unitAmount, remaining));
+        arr.push(paid);
+        remaining -= paid;
+    }
+    return arr;
+}
         function applyRemoteSheetPayload(payload) {
             if (!payload || !Array.isArray(payload.members) || payload.members.length === 0) {
                 throw new Error('Empty or invalid sheet rows');
             }
 
-            const mergedMembers = INITIAL_MEMBERS.map(base => {
-                const match = payload.members.find(r =>
-                    (r.sno && parseInt(r.sno, 10) === base.sno) ||
-                    (r.name && String(r.name).trim().toLowerCase() === base.name.toLowerCase())
-                );
+      const mergedMembers = INITIAL_MEMBERS.map(base => {
+                const match = payload.members.find(r => {
+                    const rowId = r.sno ?? r.Member_ID ?? r.memberId;
+                    const rowName = r.name ?? r.Full_Name ?? r.fullName;
+                    return (rowId && parseInt(rowId, 10) === base.sno) ||
+                        (rowName && String(rowName).trim().toLowerCase() === base.name.toLowerCase());
+                });
                 if (!match) return JSON.parse(JSON.stringify(base));
+
+                const rawCap26Ytd = match.Cap_2026_YTD ?? match.cap26YTD ?? match.cap2026Ytd;
+                const rawDues26Ytd = match.Dues_2026_YTD ?? match.dues26YTD ?? match.dues2026Ytd;
 
                 const cap26 = Array.isArray(match.cap26) && match.cap26.length >= 9
                     ? match.cap26.slice(0, 9).map(v => parseNum(v, 0))
-                    : base.cap26.slice();
+                    : distributeMonthlyFromYTD(rawCap26Ytd, 200, 9, base.cap26);
+
                 const dues26 = Array.isArray(match.dues26) && match.dues26.length >= 9
                     ? match.dues26.slice(0, 9).map(v => parseNum(v, 0))
-                    : base.dues26.slice();
+                    : distributeMonthlyFromYTD(rawDues26Ytd, 10, 9, base.dues26);
+
+                const rawStatus = String(match.Status ?? match.status ?? base.status).toLowerCase();
+                const mappedStatus = rawStatus.includes('exit') ? 'exited' : 'active';
 
                 return {
                     ...base,
-                    name: match.name ? String(match.name).trim() : base.name,
-                    whatsapp: match.whatsapp ? String(match.whatsapp).trim() : base.whatsapp,
-                    status: match.status === 'exited' ? 'exited' : (match.status === 'active' ? 'active' : base.status),
-                    cap24: match.cap24 !== undefined ? parseNum(match.cap24, base.cap24) : base.cap24,
-                    cap25: match.cap25 !== undefined ? parseNum(match.cap25, base.cap25) : base.cap25,
-                    levy25: match.levy25 !== undefined ? parseNum(match.levy25, base.levy25) : base.levy25,
+                    name: (match.Full_Name ?? match.name) ? String(match.Full_Name ?? match.name).trim() : base.name,
+                    whatsapp: (match.WhatsApp_Number ?? match.whatsapp) ? String(match.WhatsApp_Number ?? match.whatsapp).trim() : base.whatsapp,
+                    status: mappedStatus,
+                    cap24: (match.Cap_2024 ?? match.cap24) !== undefined ? parseNum(match.Cap_2024 ?? match.cap24, base.cap24) : base.cap24,
+                    cap25: (match.Cap_2025 ?? match.cap25) !== undefined ? parseNum(match.Cap_2025 ?? match.cap25, base.cap25) : base.cap25,
+                    levy25: (match.Levy_2025 ?? match.levy25) !== undefined ? parseNum(match.Levy_2025 ?? match.levy25, base.levy25) : base.levy25,
                     cap26,
-                    oneOff26: match.oneOff26 !== undefined ? parseNum(match.oneOff26, base.oneOff26) : base.oneOff26,
-                    dues24: match.dues24 !== undefined ? parseNum(match.dues24, base.dues24) : base.dues24,
-                    dues25: match.dues25 !== undefined ? parseNum(match.dues25, base.dues25) : base.dues25,
+                    oneOff26: (match.OneOff_2026 ?? match.oneOff26) !== undefined ? parseNum(match.OneOff_2026 ?? match.oneOff26, base.oneOff26) : base.oneOff26,
+                    dues24: (match.Dues_2024 ?? match.dues24) !== undefined ? parseNum(match.Dues_2024 ?? match.dues24, base.dues24) : base.dues24,
+                    dues25: (match.Dues_2025 ?? match.dues25) !== undefined ? parseNum(match.Dues_2025 ?? match.dues25, base.dues25) : base.dues25,
                     dues26
                 };
             });
@@ -1689,10 +1710,13 @@ SPECDUMS Limited (IGWE BU IKE)`;
  if (!payload.members && Array.isArray(payload.membersLedger)) {
   payload.members = payload.membersLedger;
 }               
+if (payload && !Array.isArray(payload.members) && Array.isArray(payload.membersLedger)) {
+    payload.members = payload.membersLedger;
+}
 console.log('SHEET PAYLOAD:', payload);
-                if (!payload || !payload.members || payload.members.length === 0) {
-                    throw new Error('Connected to sheet, using verified baseline schema for unmapped columns');
-                }
+               if (!payload || !Array.isArray(payload.members) || payload.members.length === 0) {
+    throw new Error('Connected to sheet, using verified baseline schema for unmapped columns');
+}
 
                 applyRemoteSheetPayload(payload);
                 const stamp = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
