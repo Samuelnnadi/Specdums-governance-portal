@@ -1425,84 +1425,23 @@ SPECDUMS Limited (IGWE BU IKE)`;
             }
         }
 
-function sendSingleReminder() {
-    const raw = members.find(x => x.sno === selectedEmailMemberSno);
-    if (!raw) return;
+        function sendSingleReminder() {
+            const raw = members.find(x => x.sno === selectedEmailMemberSno);
+            if (!raw) return;
+            const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            dispatchedLogs[raw.sno] = now;
+            renderEmailEngine();
+            showToast('Reminder Dispatched (Demo)', `Automated 3-month arrears notice logged for ${raw.name} at ${now}.`);
+        
 
-    const computed = computeMemberMetrics(raw);
-    const recipientEmail = (raw.Email ?? raw.email ?? '').toString().trim();
+        function sendBatchReminders() {
+            const computed = members.map(computeMemberMetrics);
+            const flagged = computed.filter(m => m.status === 'active' && m.isEmailEligible);
+            const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    if (!recipientEmail) {
-        showToast('Missing Email', `No email address found for ${computed.name}.`, 'warning');
-        return;
-    }
-
-    const bodyText = document.getElementById('email-preview-body')?.value || '';
-    const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
-    dispatchedLogs[raw.sno] = now;
-    renderEmailEngine();
-
-    if (typeof APPS_SCRIPT_WEBAPP_URL === 'string' && APPS_SCRIPT_WEBAPP_URL.startsWith('http')) {
-        fetch(APPS_SCRIPT_WEBAPP_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-                action: 'sendArrearsReminder',
-                memberId: raw.sno,
-                name: computed.name,
-                email: recipientEmail,
-                subject: `SPECDUMS Limited — Account & Contribution Reminder (${computed.name})`,
-                body: bodyText
-            })
-        }).catch(() => {});
-    }
-
-    showToast('Reminder Queued', `Sent reminder request for ${computed.name} (${recipientEmail}).`);
-}
-
-function sendBatchReminders() {
-    const computedList = members.map(computeMemberMetrics);
-    const flagged = computedList.filter(m => m.status === 'active' && m.isEmailEligible);
-
-    if (flagged.length === 0) {
-        showToast('No Eligible Members', 'No active members meet the reminder criteria.', 'warning');
-        return;
-    }
-
-    const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const recipients = [];
-
-    flagged.forEach(m => {
-        dispatchedLogs[m.sno] = now;
-        const raw = members.find(x => x.sno === m.sno);
-        const email = (raw?.Email ?? raw?.email ?? '').toString().trim();
-        if (email) {
-            recipients.push({
-                memberId: m.sno,
-                name: m.name,
-                email
+            flagged.forEach(m => {
+                dispatchedLogs[m.sno] = now;
             });
-        }
-    });
-
-    renderEmailEngine();
-
-    if (typeof APPS_SCRIPT_WEBAPP_URL === 'string' && APPS_SCRIPT_WEBAPP_URL.startsWith('http') && recipients.length > 0) {
-        fetch(APPS_SCRIPT_WEBAPP_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-                action: 'sendBatchReminders',
-                recipients
-            })
-        }).catch(() => {});
-    }
-
-    showToast('Batch Dispatch Queued', `Triggered reminders for ${recipients.length} member(s).`);
-}
 
             renderEmailEngine();
             showToast('Batch Dispatch Complete (Demo)', `Sent ${flagged.length} automated arrears reminders simultaneously at ${now}.`);
