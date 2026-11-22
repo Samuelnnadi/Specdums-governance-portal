@@ -609,8 +609,28 @@
         </div>
     </div>
 </div>
-
-<!-- Custom Toast Notification Container (No alert() used anywhere) -->
+<!-- Member Detail Modal -->
+<div id="member-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
+        <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+            <div>
+                <h3 id="modal-member-name" class="text-lg font-bold">Member Details</h3>
+                <p id="modal-member-sub" class="text-xs text-slate-400"></p>
+            </div>
+            <button onclick="closeMemberModal()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div id="modal-body" class="p-6 overflow-y-auto space-y-4 text-xs text-slate-700"></div>
+        <div class="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex flex-wrap justify-end gap-2">
+            <button id="modal-email-btn" class="hidden px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold">Open 3-Mo Arrears Notice</button>
+            <button id="modal-ledger-btn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold">Open Full 2024–2026 Ledger</button>
+            <button onclick="closeMemberModal()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold">Close</button>
+        </div>
+    </div>
+</div><!-- Custom Toast Notification Container (No alert() used anywhere) -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
 
     <!-- =====================================================================
@@ -924,17 +944,17 @@
         }
 
         // Filter Handler for Public Directory
-        function setDirectoryFilter(filter) {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-pill').forEach(btn => {
-                if (btn.dataset.filter === filter) {
-                    btn.classList.add('ring-2', 'ring-offset-1', 'ring-slate-900');
-                } else {
-                    btn.classList.remove('ring-2', 'ring-offset-1', 'ring-slate-900');
-                }
-            });
-            renderDirectoryTable();
+      function setDirectoryFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-pill').forEach(btn => {
+        if (btn.dataset.filter === filter) {
+            btn.classList.add('ring-2', 'ring-offset-1', 'ring-slate-900');
+        } else {
+            btn.classList.remove('ring-2', 'ring-offset-1', 'ring-slate-900');
         }
+    });
+    renderDirectoryTable();
+}
 
         // Render Public Member Transparency & Arrears Directory
         function renderDirectoryTable() {
@@ -1425,14 +1445,14 @@ SPECDUMS Limited (IGWE BU IKE)`;
             }
         }
 
-        function sendSingleReminder() {
-            const raw = members.find(x => x.sno === selectedEmailMemberSno);
-            if (!raw) return;
-            const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            dispatchedLogs[raw.sno] = now;
-            renderEmailEngine();
-            showToast('Reminder Dispatched (Demo)', `Automated 3-month arrears notice logged for ${raw.name} at ${now}.`);
-        
+       function sendSingleReminder() {
+    const raw = members.find(x => x.sno === selectedEmailMemberSno);
+    if (!raw) return;
+    const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    dispatchedLogs[raw.sno] = now;
+    renderEmailEngine();
+    showToast('Reminder Dispatched (Demo)', `Automated 3-month arrears notice logged for ${raw.name} at ${now}.`);
+}
 
         function sendBatchReminders() {
             const computed = members.map(computeMemberMetrics);
@@ -1736,7 +1756,103 @@ console.error('SYNC ERROR:', err);
                 if (spinner) spinner.classList.remove('animate-spin');
             }
         }
+       function updateForecast() {
+    const ratePct = parseFloat(document.getElementById('slider-collection-rate').value) || 75.5;
+    const recoveryPct = parseFloat(document.getElementById('slider-recovery-rate').value) || 50;
+    const activeCount = parseInt(document.getElementById('slider-active-members').value, 10) || 15;
+    const capRate = parseFloat(document.getElementById('input-cap-rate').value) || 200;
+    const duesRate = parseFloat(document.getElementById('input-dues-rate').value) || 10;
 
+    const computed = members.map(computeMemberMetrics);
+    const currentArrears = computed.filter(m => m.status === 'active').reduce((s, m) => s + m.totalOwing26, 0);
+    const recoveredCash = currentArrears * (recoveryPct / 100);
+
+    const monthlyFull = activeCount * (capRate + duesRate);
+    const monthlyModeled = monthlyFull * (ratePct / 100);
+
+    const q4Inflows = monthlyModeled * 3;
+    const q4Total = q4Inflows + recoveredCash;
+    const y2027Full = monthlyFull * 12;
+    const y2027Total = monthlyModeled * 12;
+    const projectedEndCash = bankBalance + q4Total + y2027Total;
+
+    document.getElementById('val-collection-rate').textContent = `${ratePct.toFixed(1)}%`;
+    document.getElementById('val-recovery-rate').textContent = `${recoveryPct}% (${fmtGBP(recoveredCash)})`;
+    document.getElementById('val-active-members').textContent = `${activeCount} Members`;
+
+    document.getElementById('fc-q4-total').textContent = fmtGBP(q4Total);
+    document.getElementById('fc-q4-sub').textContent = `${fmtGBP(q4Inflows)} Q4 run-rate + ${fmtGBP(recoveredCash)} recovery`;
+    document.getElementById('fc-2027-total').textContent = fmtGBP(y2027Total);
+    document.getElementById('fc-2027-sub').textContent = `vs ${fmtGBP(y2027Full)} at 100% collection`;
+    document.getElementById('fc-bank-end').textContent = fmtGBP(projectedEndCash);
+
+    const labels = ['Q4 2026', 'Q1 2027', 'Q2 2027', 'Q3 2027', 'Q4 2027'];
+    const modeledSeries = [q4Total, monthlyModeled * 3, monthlyModeled * 3, monthlyModeled * 3, monthlyModeled * 3];
+    const targetSeries = [monthlyFull * 3 + currentArrears, monthlyFull * 3, monthlyFull * 3, monthlyFull * 3, monthlyFull * 3];
+    let running = bankBalance;
+    const cumulativeSeries = modeledSeries.map(v => {
+        running += v;
+        return Number(running.toFixed(2));
+    });
+
+    const canvas = document.getElementById('forecastChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (forecastChartInstance) forecastChartInstance.destroy();
+
+    forecastChartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Modeled Quarterly Inflow (£)', data: modeledSeries, backgroundColor: '#059669', borderRadius: 6 },
+                { label: '100% Target Potential (£)', data: targetSeries, backgroundColor: '#cbd5e1', borderRadius: 6 },
+                { label: 'Cumulative Bank Reserve (£)', data: cumulativeSeries, type: 'line', borderColor: '#0F172A', backgroundColor: '#0F172A', tension: 0.3, yAxisID: 'y1' }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true },
+                y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+}
+
+function resetForecastSliders() {
+    document.getElementById('slider-collection-rate').value = 75.485;
+    document.getElementById('slider-recovery-rate').value = 50;
+    document.getElementById('slider-active-members').value = 15;
+    document.getElementById('input-cap-rate').value = 200;
+    document.getElementById('input-dues-rate').value = 10;
+    updateForecast();
+}
+
+function exportPublicBoardCSV() {
+    const computed = members.map(computeMemberMetrics);
+    const headers = ['S/No', 'Member Name', 'WhatsApp', 'Status', '24-26 Cap Paid', '24-26 Dues Paid', 'Grand Total Paid', '2026 Cap Owing', '2026 Dues Owing', 'Total 2026 Owing', 'Owing Since'];
+    const rows = computed.map(m => [
+        m.sno, `"${m.name}"`, `"${m.whatsapp}"`, m.status,
+        m.totCapPaid.toFixed(2), m.totDuesPaid.toFixed(2), m.grandTotalPaid.toFixed(2),
+        m.capOwing26.toFixed(2), m.duesOwing26.toFixed(2), m.totalOwing26.toFixed(2), `"${m.owingSince}"`
+    ].join(','));
+    const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'SPECDUMS_Governance_Ledger_2026.csv';
+    link.click();
+    showToast('CSV Exported', 'Downloaded SPECDUMS_Governance_Ledger_2026.csv.');
+}
+
+function lockApp() {
+    const pin = prompt('Enter Member Portal PIN to unlock:');
+    if (pin !== DEFAULT_GROUP_PIN) {
+        showToast('Portal Locked', 'Invalid PIN entered. Click Lock App again and enter SPECDUMS2026.', 'danger');
+    } else {
+        showToast('Portal Unlocked', 'Member PIN verified.');
+    }
+}
         function toggleAutoRefresh() {
             const enabled = document.getElementById('auto-refresh-toggle').checked;
             if (autoRefreshTimer) {
